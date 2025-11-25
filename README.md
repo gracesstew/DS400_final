@@ -1,7 +1,8 @@
 # DS400 Final Project:
 
-**Ashley Alfaro, Berylin Lau, Grace Stewart**
-**December 4, 2025**
+Ashley Alfaro, Berylin Lau, Grace Stewart
+
+December 4, 2025
 
 ## **Project Summary** ##
 
