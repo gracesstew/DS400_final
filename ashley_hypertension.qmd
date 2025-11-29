@@ -1,0 +1,118 @@
+---
+title: "Hypertension Analysis"
+format: html
+editor: visual
+---
+
+**Objective:** What are the strongest indicators of hypertension (high blood pressure), and how accurately can we predict the probability that someone with similar habits would have hypertension?
+
+**Dataset:** [Diabetes, Hypertension, and Stroke Prediction](https://www.kaggle.com/datasets/prosperchuks/health-dataset) on Kaggle
+
+## Libraries
+
+```{r}
+library(janitor)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(here)
+library(bayesrules)
+library(bayesplot)
+library(rstanarm)
+library(shiny)
+```
+
+## Read In Data
+
+```{r}
+hpt_df <- read.csv(here("data/diabetes_data.csv"))
+```
+
+## Clean Data
+
+```{r}
+hpt_df <- hpt_df %>%
+  mutate(HighBP = factor(HighBP, labels = c("No Hypertension", "Hypertension"))) %>% 
+  mutate(Diabetes = factor(Diabetes, labels = c("No Diabetes", "Diabetes"))) %>% 
+  mutate(Age = factor(Age, labels = c("18-24", "25-29", "30-34", "35-39", "40-44", "45-49",
+                                      "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"))) %>% 
+  mutate(HighChol = factor(HighChol, labels = c("No", "Yes"))) %>% 
+  mutate(HeartDiseaseorAttack = factor(HeartDiseaseorAttack, labels = c("No", "Yes"))) %>%
+  mutate(Smoker = factor(Smoker, labels = c("No", "Yes"))) %>% 
+  mutate(Fruits = factor(Fruits, labels = c("No", "Yes"))) %>% 
+  mutate(Veggies = factor(Veggies, labels = c("No", "Yes")))
+```
+
+## Exploratory Analysis
+
+```{r}
+ggplot(hpt_df, aes(x = HighBP, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  count(HighBP)
+```
+
+```{r}
+ggplot(hpt_df, aes(x = Age, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  tabyl(HighBP, Age) %>% 
+  adorn_percentages("col")
+```
+
+Those younger have lower probabilities of having hypertension, but the probability flips when you reach the 50-54 age range and older. This shows that older groups have a much higher risk of hypertension.
+
+```{r}
+ggplot(hpt_df, aes(x = BMI, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+ggplot(hpt_df, aes(x = Diabetes, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  tabyl(HighBP, Diabetes) %>% 
+  adorn_percentages("col")
+```
+
+Individuals with hypertension are likely to have diabetes, too.
+
+```{r}
+ggplot(hpt_df, aes(x = HighChol, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  tabyl(HighBP, HighChol) %>% 
+  adorn_percentages("col")
+```
+
+```{r}
+ggplot(hpt_df, aes(x = HeartDiseaseorAttack, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  tabyl(HighBP, Smoker) %>% 
+  adorn_percentages("col")
+```
+
+**Target:** HighBP\
+**Possible Predictors:** Age, Diabetes, HighChol, HeartDiseaseorAttack
