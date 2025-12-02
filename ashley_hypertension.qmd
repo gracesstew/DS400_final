@@ -4,13 +4,15 @@ format: html
 editor: visual
 ---
 
+**DS400: Bayesian Statistics \| Ashley Sofia Alfaro**
+
 **Objective:** What are the strongest indicators of hypertension (high blood pressure), and how accurately can we predict the probability that someone with similar habits would have hypertension?
 
 **Dataset:** [Diabetes, Hypertension, and Stroke Prediction](https://www.kaggle.com/datasets/prosperchuks/health-dataset) on Kaggle
 
 ## Libraries
 
-```{r}
+```{r, message=FALSE}
 library(janitor)
 library(tidyverse)
 library(dplyr)
@@ -28,7 +30,7 @@ library(shiny)
 hpt_df <- read.csv(here("data/diabetes_data.csv"))
 ```
 
-## Clean Data
+## Mutate Data
 
 ```{r}
 hpt_df <- hpt_df %>%
@@ -37,13 +39,23 @@ hpt_df <- hpt_df %>%
   mutate(Age = factor(Age, labels = c("18-24", "25-29", "30-34", "35-39", "40-44", "45-49",
                                       "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"))) %>% 
   mutate(HighChol = factor(HighChol, labels = c("No", "Yes"))) %>% 
+  mutate(Sex = factor(Sex, labels = c("Male", "Female"))) %>% 
   mutate(HeartDiseaseorAttack = factor(HeartDiseaseorAttack, labels = c("No", "Yes"))) %>%
+  mutate(PhysActivity = factor(PhysActivity, labels = c("No", "Yes"))) %>% 
   mutate(Smoker = factor(Smoker, labels = c("No", "Yes"))) %>% 
   mutate(Fruits = factor(Fruits, labels = c("No", "Yes"))) %>% 
   mutate(Veggies = factor(Veggies, labels = c("No", "Yes")))
 ```
 
 ## Exploratory Analysis
+
+```{r}
+str(hpt_df)
+```
+
+```{r}
+unique(hpt_df$BMI)
+```
 
 ```{r}
 ggplot(hpt_df, aes(x = HighBP, fill = HighBP)) +
@@ -85,7 +97,7 @@ ggplot(hpt_df, aes(x = Diabetes, fill = HighBP)) +
 ```{r}
 hpt_df %>% 
   tabyl(HighBP, Diabetes) %>% 
-  adorn_percentages("col")
+  adorn_percentages("row")
 ```
 
 Individuals with hypertension are likely to have diabetes, too.
@@ -99,7 +111,7 @@ ggplot(hpt_df, aes(x = HighChol, fill = HighBP)) +
 ```{r}
 hpt_df %>% 
   tabyl(HighBP, HighChol) %>% 
-  adorn_percentages("col")
+  adorn_percentages("row")
 ```
 
 ```{r}
@@ -110,9 +122,103 @@ ggplot(hpt_df, aes(x = HeartDiseaseorAttack, fill = HighBP)) +
 
 ```{r}
 hpt_df %>% 
-  tabyl(HighBP, Smoker) %>% 
+  tabyl(HighBP, HeartDiseaseorAttack) %>% 
+  adorn_percentages("row")
+```
+
+```{r}
+ggplot(hpt_df, aes(x = Sex, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+ggplot(hpt_df, aes(x = PhysActivity, fill = HighBP)) +
+  geom_bar() +
+  theme_minimal()
+```
+
+```{r}
+hpt_df %>% 
+  tabyl(HighBP, PhysActivity) %>% 
   adorn_percentages("col")
 ```
 
 **Target:** HighBP\
-**Possible Predictors:** Age, Diabetes, HighChol, HeartDiseaseorAttack
+**Possible Predictors:** Age, BMI, Diabetes, HighChol, HeartDiseaseorAttack, PhysActivity
+
+## Model
+
+I want to use weakly informative priors for the Bayesian logistic regression model because I don't want to force the model to believe anything specific, but instead to give it reasonable starting assumptions so it would not produce extreme or unrealistic estimates. Basically, I don't want the posterior probability to be heavily based on our prior belief.
+
+-   **normal(0, 2)** This works well when there is no strong prior belief about the baseline probability of the outcome. It keeps the model stable without restricting it too much.
+
+-   **normal(0, 1)** This would help prevent overfitting or exaggerated coefficients, especially for factors with smaller sample sizes.
+
+```{r}
+hpt_df$Age <- as.factor(hpt_df$Age)
+
+multi_hpt_model <- stan_glm(
+  HighBP ~ Age + Sex + BMI + HeartDiseaseorAttack + PhysActivity + HighChol + Diabetes,
+  data = hpt_df,
+  family = binomial,
+  prior_intercept = normal(0, 2),
+  prior = normal(0, 1),
+  chains = 4, iter = 4000, seed = 123
+)
+
+multi_hpt_model
+```
+
+### Accuracy
+
+```{r}
+classification_summary(model = multi_hpt_model, data = hpt_df, cutoff = 0.4)
+```
+
+-   sensitivity (true positives)
+-   specificity (true negatives)
+
+Creating a "person" with certain characteristics and having it predict the probability this person would have hypertension.
+
+```{r}
+our_person <- data.frame(Age = "50-54", Sex = "Male", BMI = 29, HeartDiseaseorAttack = "Yes", PhysActivity = "No", HighChol = "Yes", Diabetes = "No Diabetes")
+```
+
+```{r}
+predict(multi_hpt_model, newdata = our_person, type = "response")
+```
+
+Using the model to predict the probability someone has hypertension within the dataset.
+
+```{r}
+hpt_filtered_df <- hpt_df %>% 
+  select(Age, Sex, BMI, HeartDiseaseorAttack, PhysActivity, HighChol, Diabetes, HighBP) %>% 
+  mutate(predicted_hypertension = predict(multi_hpt_model, newdata = ., type = "response"))
+```
+
+```{r, fig.width=10}
+ggplot(hpt_filtered_df, aes(x = predicted_hypertension, y = HighBP)) +
+  geom_jitter(size = 1, alpha = 0.1) +
+  theme_minimal()
+```
+
+### Posterior Distributions
+
+```{r}
+posterior_interval(multi_hpt_model)
+```
+
+```{r}
+plot(multi_hpt_model)
+```
+
+**Increase probability of hypertension:** (Age) 35-39 → 80+, Sex (Male), Higher BMI, HeartDiseaseorAttack = Yes, HighChol = Yes, Diabetes = Yes
+
+**Decrease probability of hypertension:** PhysActivity = Yes
+
+pp_check(multi_hpt_model, plotfun = "hist")
+
+pp_check(multi_hpt_model, plotfun = "scatter_avg")
+
+**Uncertain / No Clear Effect:** (Age) 25-29, 30-34
