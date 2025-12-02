@@ -203,22 +203,83 @@ ggplot(hpt_filtered_df, aes(x = predicted_hypertension, y = HighBP)) +
   theme_minimal()
 ```
 
-### Posterior Distributions
+### Posterior Intervals
 
 ```{r}
-posterior_interval(multi_hpt_model)
+exp(posterior_interval(multi_hpt_model, prob = 0.8))
 ```
 
 ```{r}
 plot(multi_hpt_model)
 ```
 
-**Increase probability of hypertension:** (Age) 35-39 → 80+, Sex (Male), Higher BMI, HeartDiseaseorAttack = Yes, HighChol = Yes, Diabetes = Yes
+**Increase probability of hypertension:** (Age) 35-39 → 80+, Sex (Female), Higher BMI, HeartDiseaseorAttack = Yes, HighChol = Yes, Diabetes = Yes
 
 **Decrease probability of hypertension:** PhysActivity = Yes
 
-pp_check(multi_hpt_model, plotfun = "hist")
-
-pp_check(multi_hpt_model, plotfun = "scatter_avg")
-
 **Uncertain / No Clear Effect:** (Age) 25-29, 30-34
+
+## Shiny App
+
+This shiny app is meant to be used as a tool to predict hypertension risk based on selected characteristics. This is **not** intended to be a diagnostic tool.
+
+```{r}
+saveRDS(multi_hpt_model, "multi_hpt_model.rds")
+```
+
+```{r}
+model <- readRDS("multi_hpt_model.rds")
+
+ui <- fluidPage(
+  titlePanel("Hypertension Risk Predictor"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("age", "Age Group:",
+                  choices = levels(hpt_df$Age)),
+      selectInput("sex", "Sex:",
+                  choices = levels(hpt_df$Sex)),
+      selectInput("active", "Physically Active:",
+                  choices = levels(hpt_df$PhysActivity)),
+      sliderInput("bmi", "BMI:",
+                  min = 15, max = 55, value = 25),
+      selectInput("heart", "Heart Disease or Attack:",
+                  choices = levels(hpt_df$HeartDiseaseorAttack)),
+      selectInput("chol", "High Cholesterol:",
+                  choices = levels(hpt_df$HighChol)),
+      selectInput("diabetes", "Diabetes:",
+                  choices = levels(hpt_df$Diabetes)),
+      actionButton("go", "Predict!", class = "btn-primary")
+    ),
+    mainPanel(      
+      h3("Predicted Probability of Hypertension"),
+      verbatimTextOutput("result"),
+      plotOutput("posterior_plot")
+    )
+  )
+)
+
+server <- function(input, output, session){
+  observeEvent(input$go, {
+    new_person <- tibble(
+      Age = factor(input$age, levels = levels(hpt_df$Age)),
+      Sex = factor(input$sex, levels = levels(hpt_df$Sex)),
+      PhysActivity = factor(input$active, levels = levels(hpt_df$PhysActivity)),
+      BMI = as.numeric(input$bmi),
+      HeartDiseaseorAttack = factor(input$heart, levels = levels(hpt_df$HeartDiseaseorAttack)),
+      HighChol = factor(input$chol, levels = levels(hpt_df$HighChol)),
+      Diabetes = factor(input$diabetes, levels = levels(hpt_df$Diabetes))
+    )
+    preds <- posterior_predict(multi_hpt_model, newdata = new_person)
+    prob <- mean(preds)
+    output$result <- renderText({
+      paste0("Estimated probability of hypertension: ", round(prob * 100, 1), "%")
+    })
+    output$posterior_plot <- renderPlot({
+      hist(preds, main = "Posterior Predictive Distribution",
+           xlab = "Hypertension (0 = No, 1 = Yes")
+    })
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
