@@ -28,16 +28,6 @@ head(diabetes)
 
 \*\*kaggle data is already cleaned
 
-data viz exploration
-
-```{r}
-diabetes <- diabetes %>% 
-  select(Age, Sex, HighChol, CholCheck, BMI, Smoker, HeartDiseaseorAttack, PhysActivity, HvyAlcoholConsump, Stroke, HighBP, Diabetes)
-
-ggplot(diabetes, aes(x=Age,y=Sex, fill=BMI)) +
-  geom_point()
-```
-
 making model
 
 ```{r}
