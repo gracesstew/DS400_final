@@ -1,0 +1,99 @@
+---
+title: "grace_analysis"
+format: html
+---
+
+load packages
+
+```{r}
+library(bayesrules)
+library(dplyr)
+library(rstanarm)
+library(bayesplot)
+library(tidyverse)
+library(tidybayes)
+library(broom.mixed)
+library(ggpubr)
+```
+
+load data
+
+```{r}
+diabetes <- read.csv("data/diabetes_data.csv")
+#hyper <- read.csv("data/hypertension_data.csv")
+#stroke <- read.csv("data/stroke_data.csv")
+
+head(diabetes)
+```
+
+\*\*kaggle data is already cleaned
+
+data viz exploration
+
+```{r}
+diabetes <- diabetes %>% 
+  select(Age, Sex, HighChol, CholCheck, BMI, Smoker, HeartDiseaseorAttack, PhysActivity, HvyAlcoholConsump, Stroke, HighBP, Diabetes)
+
+ggplot(diabetes, aes(x=Age,y=Sex, fill=BMI)) +
+  geom_point()
+```
+
+making model
+
+```{r}
+#convert outcome (high bp) variable to factor
+diabetes$HighBP <- as.factor(diabetes$HighBP)
+
+#model
+diabetes_model <- stan_glm(
+  HighBP ~ Diabetes + HighChol + BMI + CholCheck +
+    Age + Sex + Smoker + HeartDiseaseorAttack + HvyAlcoholConsump,
+  data = diabetes,
+  family = binomial(link = "logit"),
+  prior = normal(0, 1, autoscale = TRUE),
+  prior_intercept = normal(0, 2),
+  chains = 4,
+  iter = 5000,
+  seed = 84735
+)
+```
+
+```{r}
+#save model so no need reload later
+#saveRDS(diabetes_model, "diabetes_model.rds")
+
+#load model
+diabetes_model <- readRDS("diabetes_model.rds")
+
+summary(diabetes_model)
+```
+
+```{r}
+plot(diabetes_model, prob = 0.95)
+
+```
+
+```{r}
+posterior_interval(diabetes_model, prob = 0.9)
+posterior_interval(diabetes_model, prob = 0.95)
+
+```
+
+```{r}
+pp_check(diabetes_model)
+```
+
+```{r}
+exp(posterior_interval(diabetes_model, prob = 0.80))
+```
+
+```{r}
+posterior_preds <- posterior_predict(diabetes_model)
+pred_prob <- apply(posterior_preds, 2, mean)  # mean posterior probability
+pred_class <- ifelse(pred_prob > 0.5, 1, 0)
+
+```
+
+```{r}
+table(Predicted = pred_class, Actual = diabetes$HighBP)
+```
