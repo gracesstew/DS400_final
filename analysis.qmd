@@ -35,9 +35,9 @@ making model
 diabetes$HighBP <- as.factor(diabetes$HighBP)
 
 #model
-diabetes_model <- stan_glm(
+diabetes_model2 <- stan_glm(
   HighBP ~ Diabetes + HighChol + BMI + CholCheck +
-    Age + Sex + Smoker + HeartDiseaseorAttack + PhysActivity + Stroke + HvyAlcoholConsump,
+    Age + Sex + Smoker + HeartDiseaseorAttack + Stroke + HvyAlcoholConsump,
   data = diabetes,
   family = binomial(link = "logit"),
   prior = normal(0, 1, autoscale = TRUE),
@@ -50,7 +50,7 @@ diabetes_model <- stan_glm(
 
 ```{r}
 #save model so no need reload later
-#saveRDS(diabetes_model, "diabetes_model.rds")
+#saveRDS(diabetes_model, "diabetes_model2.rds")
 
 #load model
 diabetes_model <- readRDS("diabetes_model.rds")
@@ -94,5 +94,22 @@ pred_probs <- posterior_linpred(diabetes_model, transform = TRUE)
 p_mean <- colMeans(pred_probs)
 pred_class <- ifelse(p_mean > 0.5, 1, 0)
 mean(pred_class == diabetes$HighBP)
+
+```
+
+```{r}
+classification_summary(
+  model = diabetes_model,
+  data = diabetes,
+  cutoff = 0.5
+)
+```
+
+```{r}
+classification_summary(
+  model = diabetes_model,
+  data = diabetes,
+  cutoff = 0.3
+)
 
 ```
