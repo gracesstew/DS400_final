@@ -73,6 +73,7 @@ unique(hpt_df$BMI)
 ```{r}
 ggplot(hpt_df, aes(x = HighBP, fill = HighBP)) +
   geom_bar() +
+  labs(title = "Hypertension vs No Hypertension") +
   theme_minimal()
 ```
 
@@ -86,6 +87,7 @@ hpt_df %>%
 ```{r}
 ggplot(hpt_df, aes(x = Age, fill = HighBP)) +
   geom_bar() +
+  labs(title = "Age Groups Colored by Hypertension Status") +
   theme_minimal()
 ```
 
@@ -102,6 +104,7 @@ hpt_df %>%
 ```{r}
 ggplot(hpt_df, aes(x = BMI, fill = HighBP)) +
   geom_bar() +
+  labs(title = "BMI Colored by Hypertension Status") +
   theme_minimal()
 ```
 
@@ -259,13 +262,13 @@ This shiny app is meant to be used as a tool to predict hypertension risk based 
 Save model for use in the Shiny app
 
 ```{r}
-saveRDS(multi_hpt_model, "multi_hpt_model.rds")
+saveRDS(multi_hpt_model, "hpt_model.rds")
 ```
 
 Load model and build Shiny UI and Server
 
 ```{r}
-model <- readRDS("multi_hpt_model.rds")
+model <- readRDS("hpt_model.rds")
 
 ui <- fluidPage(
   theme = shinytheme("simplex"),
