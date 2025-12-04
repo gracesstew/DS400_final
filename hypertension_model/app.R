@@ -31,7 +31,7 @@ ui <- fluidPage(
       br(),
       plotOutput("distPlot"),
       br(),
-      plotOutput("oddsRatioPlot")   # <-- NEW ODDS RATIO VISUAL
+      plotOutput("oddsRatioPlot")
     )
   )
 )
@@ -89,7 +89,7 @@ server <- function(input, output) {
   })
   
   
-  # ⭐ NEW: Odds Ratio Plot
+  # Odds Ratio Plot
   output$oddsRatioPlot <- renderPlot({
     
     # Extract posterior samples
