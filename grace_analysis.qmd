@@ -37,13 +37,13 @@ diabetes$HighBP <- as.factor(diabetes$HighBP)
 #model
 diabetes_model <- stan_glm(
   HighBP ~ Diabetes + HighChol + BMI + CholCheck +
-    Age + Sex + Smoker + HeartDiseaseorAttack + HvyAlcoholConsump,
+    Age + Sex + Smoker + HeartDiseaseorAttack + PhysActivity + Stroke + HvyAlcoholConsump,
   data = diabetes,
   family = binomial(link = "logit"),
   prior = normal(0, 1, autoscale = TRUE),
   prior_intercept = normal(0, 2),
   chains = 4,
-  iter = 5000,
+  iter = 1000,
   seed = 84735
 )
 ```
@@ -78,12 +78,26 @@ exp(posterior_interval(diabetes_model, prob = 0.80))
 ```
 
 ```{r}
-posterior_preds <- posterior_predict(diabetes_model)
-pred_prob <- apply(posterior_preds, 2, mean)  # mean posterior probability
-pred_class <- ifelse(pred_prob > 0.5, 1, 0)
+posterior <- as.array(diabetes_model)
+mcmc_areas(posterior, 
+           pars = c("Diabetes", "HighChol", "BMI", "Age", "Sex"),
+           prob = 0.95)
 
 ```
 
 ```{r}
-table(Predicted = pred_class, Actual = diabetes$HighBP)
+mcmc_trace(posterior, pars = c("Diabetes", "HighChol", "BMI"))
+```
+
+```{r}
+pred_probs <- posterior_linpred(diabetes_model, transform = TRUE)
+p_mean <- colMeans(pred_probs)
+pred_class <- ifelse(p_mean > 0.5, 1, 0)
+mean(pred_class == diabetes$HighBP)
+
+```
+
+```{r}
+pp_check(diabetes_model, type = "stat", stat = "mean")
+
 ```
