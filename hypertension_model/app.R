@@ -1,5 +1,6 @@
 library(shiny)
 library(rstanarm)
+library(ggplot2)
 
 # Load model
 diabetes_model <- readRDS("diabetes_model.rds")
@@ -28,7 +29,9 @@ ui <- fluidPage(
       h3("Predicted Probability of High Blood Pressure"),
       textOutput("prediction"),
       br(),
-      plotOutput("distPlot")
+      plotOutput("distPlot"),
+      br(),
+      plotOutput("oddsRatioPlot")   # <-- NEW ODDS RATIO VISUAL
     )
   )
 )
@@ -76,7 +79,6 @@ server <- function(input, output) {
       HvyAlcoholConsump = as.numeric(input$Alcohol)
     )
     
-    
     p <- posterior_epred(diabetes_model, newdata = new_data)
     
     hist(as.numeric(p),
@@ -84,6 +86,39 @@ server <- function(input, output) {
          col = "skyblue",
          main = "Posterior Predictive Distribution",
          xlab = "Predicted Probability")
+  })
+  
+  
+  # ⭐ NEW: Odds Ratio Plot
+  output$oddsRatioPlot <- renderPlot({
+    
+    # Extract posterior samples
+    post <- as.matrix(diabetes_model)
+    coef_names <- colnames(post)[-1]   # drop intercept
+    
+    # Compute OR = exp(beta)
+    OR_means <- apply(post[, coef_names], 2, function(x) exp(mean(x)))
+    OR_low   <- apply(post[, coef_names], 2, function(x) exp(quantile(x, 0.025)))
+    OR_high  <- apply(post[, coef_names], 2, function(x) exp(quantile(x, 0.975)))
+    
+    df <- data.frame(
+      Predictor = coef_names,
+      OR = OR_means,
+      Low = OR_low,
+      High = OR_high
+    )
+    
+    ggplot(df, aes(x = reorder(Predictor, OR), y = OR)) +
+      geom_point(size = 3, color = "darkred") +
+      geom_errorbar(aes(ymin = Low, ymax = High), width = 0.2) +
+      geom_hline(yintercept = 1, linetype = "dashed") +
+      coord_flip() +
+      labs(
+        title = "Odds Ratios for Predictors",
+        x = "Predictor",
+        y = "Odds Ratio"
+      ) +
+      theme_minimal(base_size = 14)
   })
 }
 
