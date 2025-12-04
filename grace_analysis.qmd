@@ -96,8 +96,3 @@ pred_class <- ifelse(p_mean > 0.5, 1, 0)
 mean(pred_class == diabetes$HighBP)
 
 ```
-
-```{r}
-pp_check(diabetes_model, type = "stat", stat = "mean")
-
-```
