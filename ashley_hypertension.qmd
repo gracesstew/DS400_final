@@ -6,9 +6,11 @@ editor: visual
 
 **DS400: Bayesian Statistics \| Ashley Sofia Alfaro**
 
-**Objective:** What are the strongest indicators of hypertension (high blood pressure), and how accurately can we predict the probability that someone with similar habits would have hypertension?
+**RQ:** What are the strongest indicators of hypertension (high blood pressure), and how accurately can we predict the probability that someone with similar habits would have hypertension?
 
 **Dataset:** [Diabetes, Hypertension, and Stroke Prediction](https://www.kaggle.com/datasets/prosperchuks/health-dataset) on Kaggle
+
+------------------------------------------------------------------------
 
 ## Libraries
 
@@ -33,6 +35,8 @@ hpt_df <- read.csv(here("data/diabetes_data.csv"))
 
 ## Mutate Data
 
+This is to convert variables to factors with clear labels.
+
 ```{r}
 hpt_df <- hpt_df %>%
   mutate(HighBP = factor(HighBP, labels = c("No Hypertension", "Hypertension"))) %>% 
@@ -48,15 +52,23 @@ hpt_df <- hpt_df %>%
   mutate(Veggies = factor(Veggies, labels = c("No", "Yes")))
 ```
 
+------------------------------------------------------------------------
+
 ## Exploratory Analysis
+
+**Checking structure of the dataset**
 
 ```{r}
 str(hpt_df)
 ```
 
+**Looking at the unique BMI values to see its range**
+
 ```{r}
 unique(hpt_df$BMI)
 ```
+
+**Bar plot showing count of hypertension cases vs no hypertension**
 
 ```{r}
 ggplot(hpt_df, aes(x = HighBP, fill = HighBP)) +
@@ -68,6 +80,8 @@ ggplot(hpt_df, aes(x = HighBP, fill = HighBP)) +
 hpt_df %>% 
   count(HighBP)
 ```
+
+**Bar plot of age groups filled by hypertension status**
 
 ```{r}
 ggplot(hpt_df, aes(x = Age, fill = HighBP)) +
@@ -81,13 +95,17 @@ hpt_df %>%
   adorn_percentages("col")
 ```
 
-Those younger have lower probabilities of having hypertension, but the probability flips when you reach the 50-54 age range and older. This shows that older groups have a much higher risk of hypertension.
+**Interpretation:** Those younger have lower probabilities of having hypertension, but the probability flips when you reach the 50-54 age range and older. This shows that older groups have a much higher risk of hypertension.
+
+**Bar plot showing BMI distribution and hypertension status**
 
 ```{r}
 ggplot(hpt_df, aes(x = BMI, fill = HighBP)) +
   geom_bar() +
   theme_minimal()
 ```
+
+**Bar plot of Diabetes status vs hypertension**
 
 ```{r}
 ggplot(hpt_df, aes(x = Diabetes, fill = HighBP)) +
@@ -101,7 +119,9 @@ hpt_df %>%
   adorn_percentages("row")
 ```
 
-Individuals with hypertension are likely to have diabetes, too.
+**Interpretation:** Individuals with hypertension are likely to have diabetes, too.
+
+**The code chunks below produce similar plots and tables for High Cholesterol, Heart Disease or Attack, Sex, and Physical Activity to understand their relationships with hypertension.**
 
 ```{r}
 ggplot(hpt_df, aes(x = HighChol, fill = HighBP)) +
@@ -145,16 +165,14 @@ hpt_df %>%
   adorn_percentages("col")
 ```
 
-**Target:** HighBP\
-**Possible Predictors:** Age, BMI, Diabetes, HighChol, HeartDiseaseorAttack, PhysActivity
+------------------------------------------------------------------------
 
 ## Model
 
-I want to use weakly informative priors for the Bayesian logistic regression model because I don't want to force the model to believe anything specific, but instead to give it reasonable starting assumptions so it would not produce extreme or unrealistic estimates. Basically, I don't want the posterior probability to be heavily based on our prior belief.
+I want to use *weakly informative* priors for the Bayesian logistic regression model because I don't want to force the model to believe anything specific, but instead to give it reasonable starting assumptions so it would not produce extreme or unrealistic estimates. Basically, I don't want the posterior probability to be heavily based on our prior belief.
 
--   **normal(0, 2)** This works well when there is no strong prior belief about the baseline probability of the outcome. It keeps the model stable without restricting it too much.
-
--   **normal(0, 1)** This would help prevent overfitting or exaggerated coefficients, especially for factors with smaller sample sizes.
+-   **Target:** HighBP
+-   **Possible Predictors:** Age, BMI, Diabetes, HighChol, HeartDiseaseorAttack, PhysActivity
 
 ```{r}
 hpt_df$Age <- as.factor(hpt_df$Age)
@@ -177,8 +195,14 @@ multi_hpt_model
 classification_summary(model = multi_hpt_model, data = hpt_df, cutoff = 0.4)
 ```
 
--   sensitivity (true positives)
--   specificity (true negatives)
+-   Sensitivity (true positives)
+-   Specificity (true negatives)
+
+**Model Accuracy:** \~72.98% **Sensitivity:** \~88.22% **Specificity:** \~53.31%
+
+------------------------------------------------------------------------
+
+### Predictions for a Single Person
 
 Creating a "person" with certain characteristics and having it predict the probability this person would have hypertension.
 
@@ -190,13 +214,17 @@ our_person <- data.frame(Age = "50-54", Sex = "Male", BMI = 29, HeartDiseaseorAt
 predict(multi_hpt_model, newdata = our_person, type = "response")
 ```
 
-Using the model to predict the probability someone has hypertension within the dataset.
+### Predictions for Dataset
+
+Adding predicted probability to the dataset
 
 ```{r}
 hpt_filtered_df <- hpt_df %>% 
   select(Age, Sex, BMI, HeartDiseaseorAttack, PhysActivity, HighChol, Diabetes, HighBP) %>% 
   mutate(predicted_hypertension = predict(multi_hpt_model, newdata = ., type = "response"))
 ```
+
+Plot predicted probability vs actual hypertension status
 
 ```{r, fig.width=10}
 ggplot(hpt_filtered_df, aes(x = predicted_hypertension, y = HighBP)) +
@@ -220,13 +248,21 @@ plot(multi_hpt_model)
 
 **Uncertain / No Clear Effect:** (Age) 25-29, 30-34
 
+------------------------------------------------------------------------
+
 ## Shiny App
 
-This shiny app is meant to be used as a tool to predict hypertension risk based on selected characteristics. This is **not** intended to be a diagnostic tool.
+This shiny app is meant to be used as a tool to predict hypertension risk based on selected characteristics. It also lets users simulate outcomes for 1000 similar people to see variability in predictions.
+
+-   **Note:** This is **not** intended to be a diagnostic tool.
+
+Save model for use in the Shiny app
 
 ```{r}
 saveRDS(multi_hpt_model, "multi_hpt_model.rds")
 ```
+
+Load model and build Shiny UI and Server
 
 ```{r}
 model <- readRDS("multi_hpt_model.rds")
@@ -289,7 +325,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session){
-
+  # Create a dataframe for the selected characteristics 
   observeEvent(input$go, {
     new_person <- tibble(
       Age = factor(input$age, levels = levels(hpt_df$Age)),
