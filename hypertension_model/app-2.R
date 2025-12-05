@@ -1,0 +1,154 @@
+# —————— LIBRARIES —————— #
+library(shiny)
+library(shinythemes)
+library(here)
+library(dplyr)
+
+# —————— READ AND MUTATE DATA —————— #
+hpt_df <- read.csv(here("data/diabetes_data.csv"))
+
+hpt_df <- hpt_df %>%
+  mutate(HighBP = factor(HighBP, labels = c("No Hypertension", "Hypertension"))) %>% 
+  mutate(Diabetes = factor(Diabetes, labels = c("No Diabetes", "Diabetes"))) %>% 
+  mutate(Age = factor(Age, labels = c("18-24", "25-29", "30-34", "35-39", "40-44", "45-49",
+                                      "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"))) %>% 
+  mutate(HighChol = factor(HighChol, labels = c("No", "Yes"))) %>% 
+  mutate(Sex = factor(Sex, labels = c("Male", "Female"))) %>% 
+  mutate(HeartDiseaseorAttack = factor(HeartDiseaseorAttack, labels = c("No", "Yes"))) %>%
+  mutate(PhysActivity = factor(PhysActivity, labels = c("No", "Yes"))) %>% 
+  mutate(Smoker = factor(Smoker, labels = c("No", "Yes"))) %>% 
+  mutate(Fruits = factor(Fruits, labels = c("No", "Yes"))) %>% 
+  mutate(Veggies = factor(Veggies, labels = c("No", "Yes")))
+
+# —————— SHINY APP —————— #
+# This shiny app is meant to be used as a tool to predict hypertension risk based on selected characteristics. 
+# It also lets users simulate outcomes for 1000 similar people to see variability in predictions.
+
+# Make sure you have already downloaded the `hpt_model.rds` file before running!
+  
+model <- readRDS(here("hypertension_model/hpt_model.rds"))
+
+ui <- fluidPage(
+  theme = shinytheme("simplex"),
+  titlePanel(strong("Hypertension Probability Calculator")),
+  
+  tags$style(HTML("
+    #simulation_text {
+      font-size: 14px;
+      padding-top: 6px;
+    }
+    .section-title {
+      margin-top: 25px;
+      font-weight: bold;
+      font-size: 20px;
+    }
+  ")),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h4("Select Characteristics"),
+      selectInput("age", "Age Group:", 
+                  choices = levels(hpt_df$Age)),
+      selectInput("sex", "Sex:", 
+                  choices = levels(hpt_df$Sex)),
+      selectInput("active", "Physically Active:", 
+                  choices = levels(hpt_df$PhysActivity)),
+      sliderInput("bmi", "BMI:", 
+                  min = 15, max = 55, value = 25),
+      selectInput("heart", "Heart Disease or Attack:", 
+                  choices = levels(hpt_df$HeartDiseaseorAttack)),
+      selectInput("chol", "High Cholesterol:", 
+                  choices = levels(hpt_df$HighChol)),
+      selectInput("diabetes", "Diabetes:", 
+                  choices = levels(hpt_df$Diabetes)),
+      actionButton("go", "Predict", class = "btn-primary"),
+      br(), br(),
+      actionButton("simulate", "Simulate 1000 People", class = "btn-success")
+    ),
+    
+    mainPanel(
+      div(class="section-title", "Predicted Probability"),
+      wellPanel(
+        style = "background-color:#f7f7f7; padding: 14px; border-radius: 6px;",
+        textOutput("result")
+      ),
+      plotOutput("posterior_plot"),
+      
+      div(class="section-title", "Simulation Results"),
+      wellPanel(
+        style = "background-color:#f7f7f7; padding: 14px; border-radius: 6px;",
+        textOutput("simulation_text")
+      ),
+      plotOutput("simulation_plot"),
+      br()
+    )
+  )
+)
+
+server <- function(input, output, session){
+  # Create a dataframe for the selected characteristics 
+  observeEvent(input$go, {
+    new_person <- tibble(
+      Age = factor(input$age, levels = levels(hpt_df$Age)),
+      Sex = factor(input$sex, levels = levels(hpt_df$Sex)),
+      PhysActivity = factor(input$active, levels = levels(hpt_df$PhysActivity)),
+      BMI = as.numeric(input$bmi),
+      HeartDiseaseorAttack = factor(input$heart, levels = levels(hpt_df$HeartDiseaseorAttack)),
+      HighChol = factor(input$chol, levels = levels(hpt_df$HighChol)),
+      Diabetes = factor(input$diabetes, levels = levels(hpt_df$Diabetes))
+    )
+    
+    prob_draws <- posterior_linpred(model, newdata = new_person, transform = TRUE)
+    prob <- mean(prob_draws)
+    
+    output$result <- renderText({
+      paste0("Estimated probability of hypertension: ", round(prob * 100, 1), "%")
+    })
+    
+    output$posterior_plot <- renderPlot({
+      density_obj <- density(prob_draws)
+      plot(density_obj,
+           main = "Posterior Distribution of Predicted Probability",
+           xlab = "Probability of Hypertension",
+           ylab = "Density",
+           lwd = 2, col = "red", xlim = c(0,1))
+      polygon(density_obj, col = rgb(1, 0, 0, 0.3), border = NA)
+      abline(v = prob, col = "blue", lwd = 2, lty = 2)
+    })
+  })
+  
+  observeEvent(input$simulate, {
+    new_person <- tibble(
+      Age = factor(input$age, levels = levels(hpt_df$Age)),
+      Sex = factor(input$sex, levels = levels(hpt_df$Sex)),
+      PhysActivity = factor(input$active, levels = levels(hpt_df$PhysActivity)),
+      BMI = as.numeric(input$bmi),
+      HeartDiseaseorAttack = factor(input$heart, levels = levels(hpt_df$HeartDiseaseorAttack)),
+      HighChol = factor(input$chol, levels = levels(hpt_df$HighChol)),
+      Diabetes = factor(input$diabetes, levels = levels(hpt_df$Diabetes))
+    )
+    
+    prob_draws <- posterior_linpred(model, newdata = new_person, transform = TRUE)
+    
+    simulated_outcomes <- rbinom(1000, size = 1, prob = prob_draws)
+    
+    output$simulation_plot <- renderPlot({
+      sim_density <- density(simulated_outcomes)
+      plot(sim_density,
+           main = "Distribution of Outcomes (Based on Selected Characteristics)",
+           xlab = "Simulated Hypertension Outcome\n 0 = No Hypertension; 1 = Hypertension",
+           ylab = "Density",
+           lwd = 2, col = "darkgreen",
+           xlim = c(0,1))
+      polygon(sim_density, col = rgb(0,1,0,0.3), border = NA)
+    })
+    
+    output$simulation_text <- renderText({
+      paste0("Out of 1000 simulated people with these characteristics, ",
+             sum(simulated_outcomes),
+             " were predicted to have hypertension.")
+    })
+  })
+}
+
+shinyApp(ui = ui, server = server)
